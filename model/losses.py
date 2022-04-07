@@ -79,6 +79,7 @@ def rpn_bbox_loss(target_bbox, rpn_match, predict_bbox):
     # print(indices)
     # print(tf.gather(anchors, indices))
 
+
     # rpn_match = K.squeeze(rpn_match, -1)
     # 只要label=1的那些box
     indices = tf.where(rpn_match == 1)
@@ -126,8 +127,8 @@ def mrcnn_class_loss(target_class_ids, pred_class_logits, rois):
     # print(pred_class_logits)
 
     non_zeros = tf.cast(tf.reduce_sum(tf.abs(rois), axis=2), tf.bool)
-    target_class_ids = tf.cast(tf.boolean_mask(target_class_ids, non_zeros), dtype=tf.int64)
-    pred_class_logits = tf.cast(tf.boolean_mask(pred_class_logits, non_zeros), dtype=tf.float32)
+    target_class_ids = tf.cast(tf.boolean_mask(target_class_ids, non_zeros),dtype=tf.int64)
+    pred_class_logits = tf.cast(tf.boolean_mask(pred_class_logits, non_zeros),dtype=tf.float32)
     # pred_class_logits = tf.argmax(pred_class_logits, axis=2)
     # active_class = tf.where(target_class_ids > 0)
     # target_class_ids = tf.cast(tf.gather_nd(target_class_ids, active_class), dtype=tf.int32)
@@ -210,7 +211,7 @@ def mrcnn_bbox_loss(target_bbox, target_class_ids, pred_bbox, rois):
 
     # Only positive ROIs contribute to the loss. And only
     # the right class_id of each ROI. Get their indices.
-    positive_roi_ix = tf.cast(tf.where(target_class_ids > 0)[:, 0], dtype=tf.int32)
+    positive_roi_ix = tf.cast(tf.where(target_class_ids > 0)[:, 0],dtype=tf.int32)
     positive_roi_class_ids = tf.cast(
         tf.gather(target_class_ids, positive_roi_ix), dtype=tf.int32)
     indices = tf.stack([positive_roi_ix, positive_roi_class_ids], axis=1)
@@ -254,7 +255,7 @@ def mrcnn_mask_loss(target_masks, target_class_ids, pred_masks, rois):
     target_masks = tf.reshape(target_masks, (-1, mask_shape[2], mask_shape[3]))
     # pred_shape = tf.shape(pred_masks)
     pred_masks = tf.reshape(pred_masks,
-                            (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
+                           (-1, pred_shape[2], pred_shape[3], pred_shape[4]))
     # Permute predicted masks to [N, num_classes, height, width]
     pred_masks = tf.transpose(pred_masks, [0, 3, 1, 2])
 
@@ -272,9 +273,9 @@ def mrcnn_mask_loss(target_masks, target_class_ids, pred_masks, rois):
     # Compute binary cross entropy. If no positive ROIs, then return 0.
     # shape: [batch, roi, num_classes]
     bc_loss = tf.keras.backend.switch(tf.size(y_true) > 0,
-                                      # tf.keras.losses.BinaryCrossentropy()(y_true=y_true, y_pred=y_pred),
-                                      tf.keras.backend.binary_crossentropy(target=y_true, output=y_pred),
-                                      tf.constant(0.0))
+                    # tf.keras.losses.BinaryCrossentropy()(y_true=y_true, y_pred=y_pred),
+                    tf.keras.backend.binary_crossentropy(target=y_true, output=y_pred),
+                    tf.constant(0.0))
     bc_loss = tf.keras.backend.mean(bc_loss)
 
     # mae_loss = tf.reduce_mean(tf.abs(y_true - y_pred), axis=[1,2])
