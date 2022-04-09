@@ -144,6 +144,7 @@ def build_rpn_targets(anchors, gt_boxes, image_shape, batch_size, rpn_train_anch
 
     return batch_rpn_match, batch_rpn_bbox
 
+
 class AnchorTargetLayer(tf.keras.layers.Layer):
     """ 生成rpn的目标数据, 做损失计算用 """
 
