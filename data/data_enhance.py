@@ -1,5 +1,6 @@
 from pycocotools.coco import COCO
 import json
+import math
 
 
 def instance_count(annotation_path):
@@ -21,7 +22,26 @@ def instance_count(annotation_path):
     return result
 
 
+def instance_balance(annotation_path, float_range=0.2):
+    counts = instance_count(annotation_path)
+
+    # 按照实例数量进行冒泡排序
+    for i in range(len(counts) - 1):
+        for j in range(len(counts) - i - 1):
+            if counts[j]['count'] > counts[j + 1]['count']:
+                counts[j], counts[j + 1] = counts[j + 1], counts[j]
+
+    # min_count = math.floor(counts[1]['count'] * (1-float_range))
+    # max_count = math.ceil(counts[1]['count'] * (1+float_range))
+    # # print(min_count, max_count)
+    #
+    # reduce_dic = []
+    # for i in range(1, len(counts), 1):
+    #     if counts[i]['count'] <
+    #     reduce_dic.append({'cls': counts[i]['cls'], 'reduce': counts})
+
+
+
 if __name__ == "__main__":
     annotation_file = r"D:\temp\coco\annotations.json"
-    a = instance_count(annotation_file)
-    print(a)
+    instance_balance(annotation_file)
