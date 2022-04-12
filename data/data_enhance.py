@@ -1,8 +1,15 @@
 from pycocotools.coco import COCO
 import json
 import math
+import numpy as np
 
 
+def get_coco(file_path):
+    coco = COCO(annotation_file=file_path)
+    return coco
+
+
+# TODO: 改进
 def instance_count(annotation_path):
     result = []
     coco = COCO(annotation_file=annotation_path)
@@ -41,7 +48,33 @@ def instance_balance(annotation_path, float_range=0.2):
     #     reduce_dic.append({'cls': counts[i]['cls'], 'reduce': counts})
 
 
+def get_mask(coco: COCO, cat_name, num):
+    """
+    从数据集中取得num个指定类的mask
+    :param coco:
+    :param cat_name:
+    :param num:
+    :return:
+    """
+    cat_id = coco.getCatIds(catNms=cat_name)
+    ann_ids = coco.getAnnIds(catIds=cat_id)
+
+    assert num <= len(ann_ids), 'there is no {} {} in the coco dataset'.format(num, cat_name)
+    ann_ids = ann_ids[:num]
+    anns = coco.loadAnns(ids=ann_ids)
+    masks = []
+    for ann in anns:
+        mask = coco.annToMask(ann=ann)
+        print(mask)
+        masks.append(mask)
+
+    return masks
+
 
 if __name__ == "__main__":
-    annotation_file = r"D:\temp\coco\annotations.json"
-    instance_balance(annotation_file)
+    # annotation_path = r"D:\temp\coco\annotations.json"
+    # instance_balance(annotation_file)
+    # coco = COCO(annotation_file=annotation_path)
+    # get_segmentation(coco, ['circle'], 5)
+    coco = get_coco(r"D:\temp\coco\annotations.json")
+    get_mask(coco, 'circle', 2)
