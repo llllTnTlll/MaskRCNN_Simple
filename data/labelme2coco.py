@@ -20,9 +20,9 @@ except ImportError:
 
 
 def main():
-    input_dir = r'C:\Users\ZHIYUAN\Downloads\temp\json'
-    output_dir = r'C:\Users\ZHIYUAN\Downloads\temp\coco'
-    labels = r'C:\Users\ZHIYUAN\Downloads\temp\labels.txt'
+    input_dir = r'C:\Users\zhiyuan\Desktop\temp\json'
+    output_dir = r'C:\Users\zhiyuan\Desktop\temp\coco'
+    labels = r'C:\Users\zhiyuan\Desktop\temp\labels.txt'
     noviz = False
 
     now = datetime.datetime.now()
