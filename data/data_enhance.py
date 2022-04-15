@@ -74,6 +74,12 @@ def get_mask(coco: COCO, cat_name, num):
 
 
 def extract_ann(coco:COCO, masks):
+    """
+    根据mask从对应图像中提取特征
+    :param coco:
+    :param masks:
+    :return:
+    """
     for mask in masks:
         image_id = mask['image_id']
         image_name = coco.loadImgs(image_id)[0]['file_name']
@@ -84,6 +90,23 @@ def extract_ann(coco:COCO, masks):
         # cv.imshow('', ann)
         # cv.waitKey()
         yield ann
+
+
+def mask2polygon(mask):
+    contours, hierarchy = cv.findContours((mask).astype(np.uint8), cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    # mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    segmentation = []
+    for contour in contours:
+        contour_list = contour.flatten().tolist()
+        if len(contour_list) > 4:    # and cv2.contourArea(contour)>10000
+            segmentation.append(contour_list)
+    return segmentation
+
+
+def image2binary(image):
+    gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+    ret, binary = cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
+    return binary
 
 
 def cut_paste(coco:COCO, cat_name, num, image_shape=None):
@@ -120,12 +143,16 @@ def cut_paste(coco:COCO, cat_name, num, image_shape=None):
         mat_translation = np.float32([[1, 0, dx], [0, 1, dy]])
         image_move_0 = cv.warpAffine(ann, mat_translation, (image_wide, image_height))
 
-        cv.imshow('', image_move_0)
+        binary = image2binary(image_move_0)
+        seg = mask2polygon(binary)
+        print(binary.shape)
+        print(seg)
+        cv.imshow('', binary)
         cv.waitKey()
 
 
 if __name__ == "__main__":
     coco = get_coco(r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json")
     cut_paste(coco, 'rectangle', 6)
-    # masks = get_mask(coco, 'rectangles', 3)
-    # extract_ann(coco, masks)
+
+
