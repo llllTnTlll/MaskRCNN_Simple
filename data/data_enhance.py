@@ -5,11 +5,43 @@ import numpy as np
 import cv2 as cv
 import os
 import random
+from cv_helper import *
+from utils import *
 
 
 def get_coco(file_path):
     coco = COCO(annotation_file=file_path)
     return coco
+
+
+def get_mask(coco: COCO, cat_name, num):
+    """
+    从数据集中取得num个指定类的mask
+    :param coco:
+    :param cat_name:
+    :param num:
+    :return:
+    """
+    cat_id = coco.getCatIds(catNms=cat_name)
+    ann_ids = coco.getAnnIds(catIds=cat_id)
+
+    # TODO: 允许num溢出，重复遍历mask
+    assert num <= len(ann_ids), 'there is no {} {} in the coco dataset'.format(num, cat_name)
+    ann_ids = ann_ids[:num]
+    anns = coco.loadAnns(ids=ann_ids)
+    mask_info = []
+    for ann in anns:
+        mask = coco.annToMask(ann=ann)
+        mask_info.append({'image_id': ann['image_id'], 'mask': mask, 'bbox': ann['bbox']})
+        # print(masks)
+    return mask_info
+
+
+def get_path(coco: COCO, image_id):
+    image_name = coco.loadImgs(image_id)[0]['file_name']
+    # TODO: 根目录获取
+    image_path = os.path.join(r'C:\Users\zhiyuan\Desktop\temp\coco', image_name)
+    return image_path
 
 
 # TODO: 改进
@@ -51,29 +83,7 @@ def instance_balance(annotation_path, float_range=0.2):
     #     reduce_dic.append({'cls': counts[i]['cls'], 'reduce': counts})
 
 
-def get_mask(coco: COCO, cat_name, num):
-    """
-    从数据集中取得num个指定类的mask
-    :param coco:
-    :param cat_name:
-    :param num:
-    :return:
-    """
-    cat_id = coco.getCatIds(catNms=cat_name)
-    ann_ids = coco.getAnnIds(catIds=cat_id)
-
-    assert num <= len(ann_ids), 'there is no {} {} in the coco dataset'.format(num, cat_name)
-    ann_ids = ann_ids[:num]
-    anns = coco.loadAnns(ids=ann_ids)
-    masks = []
-    for ann in anns:
-        mask = coco.annToMask(ann=ann)
-        masks.append({'mask': mask, 'image_id': ann['image_id'], 'bbox': ann['bbox']})
-        # print(masks)
-    return masks
-
-
-def extract_ann(coco:COCO, masks):
+def extract_ann(coco: COCO, masks):
     """
     根据mask从对应图像中提取特征
     :param coco:
@@ -82,38 +92,20 @@ def extract_ann(coco:COCO, masks):
     """
     for mask in masks:
         image_id = mask['image_id']
-        image_name = coco.loadImgs(image_id)[0]['file_name']
-        # TODO: 根目录获取
-        image_path = os.path.join(r'C:\Users\zhiyuan\Desktop\temp\coco', image_name)
-        image = cv.imread(image_path)
+        image = cv.imread(get_path(coco, image_id))
         ann = cv.copyTo(image, mask['mask'])
         # cv.imshow('', ann)
         # cv.waitKey()
         yield ann
 
 
-def mask2polygon(mask):
-    contours, hierarchy = cv.findContours((mask).astype(np.uint8), cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    # mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-    segmentation = []
-    for contour in contours:
-        contour_list = contour.flatten().tolist()
-        if len(contour_list) > 4:    # and cv2.contourArea(contour)>10000
-            segmentation.append(contour_list)
-    return segmentation
-
-
-def image2binary(image):
-    gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-    ret, binary = cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
-    return binary
-
-
-def cut_paste(coco:COCO, cat_name, num, image_shape=None):
+def cut_paste(coco: COCO, cat_name, num, image_shape=None,
+              annotation_path=r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"):
     """
     coco数据集数据增强
     根据mask进行裁剪拼贴
     自动标注
+    :param annotation_path:
     :param image_shape:
     :param coco:
     :param cat_name:
@@ -125,34 +117,91 @@ def cut_paste(coco:COCO, cat_name, num, image_shape=None):
     image_wide = image_shape[0]
     image_height = image_shape[1]
 
-    masks = get_mask(coco, cat_name, num)
-    anns = extract_ann(coco, masks)
+    mask_info = get_mask(coco, cat_name, num)
+    anns = extract_ann(coco, mask_info)
     for i in range(num):
         ann = next(anns)
-        mask = masks[i]
+        info = mask_info[i]
         # 根据bbox推算平移变换范围
-        [x, y, w, h] = mask['bbox']
+        [x, y, w, h] = info['bbox']
         left_max = x
         right_max = image_wide - x - w
         top_max = image_height - y - h
         bottom_max = y
 
-        # 应用随机偏移
+        # 随机偏移
         dx = random.randint(-left_max, right_max)
         dy = random.randint(-bottom_max, top_max)
         mat_translation = np.float32([[1, 0, dx], [0, 1, dy]])
-        image_move_0 = cv.warpAffine(ann, mat_translation, (image_wide, image_height))
 
-        binary = image2binary(image_move_0)
-        seg = mask2polygon(binary)
-        print(binary.shape)
-        print(seg)
-        cv.imshow('', binary)
-        cv.waitKey()
+        image_moved = cv.warpAffine(ann, mat_translation, (image_wide, image_height))
+        mask = image2binary(image_moved)
+        bbox = compute_bbox(mask)
+        seg = mask2polygon(mask)
+
+        # cv.imshow('image_moved', image_moved)
+        # cv.imshow('mask', mask)
+        # print(bbox)
+        # print(seg)
+        # cv.waitKey()
+
+        ann_idx = coco.getAnnIds(imgIds=i)
+        objects = coco.loadAnns(ann_idx)
+
+        annotations = []
+        start_id = len(json.load(open(annotation_path, "r"))['annotations'])
+        overlap = False
+        for obj in objects:
+            obj_bbox = obj['bbox']
+            iou = compute_iou(wh2xy(bbox), wh2xy(obj_bbox))
+            # src = cv.imread(get_path(coco, i))
+            print(iou)
+            if iou > 0:
+                overlap = True
+                break
+
+        if not overlap:
+            annotations.append(
+                dict(
+                    id=start_id,
+                    image_id=image_id,
+                    category_id=cls_id,
+                    segmentation=segmentations[instance],
+                    area=area,
+                    bbox=bbox,
+                    iscrowd=0,
+                )
+            )
+def translational(ann, mask_info):
+    [x, y, w, h] = mask_info['bbox']
+    left_max = x
+    right_max = image_wide - x - w
+    top_max = image_height - y - h
+    bottom_max = y
+
+
+def enhance(coco: COCO, manners, cat_name, num):
+    mask_info = get_mask(coco, cat_name, num)
+    anns = extract_ann(coco, mask_info)
+
+    # 对提取出的annotation进行仿射变换
+    for n in range(num):
+
+
 
 
 if __name__ == "__main__":
     coco = get_coco(r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json")
-    cut_paste(coco, 'rectangle', 6)
-
-
+    cut_paste(coco, 'rectangle', 8)
+    # ids = coco.getAnnIds(imgIds=1)
+    # anns = coco.loadAnns(ids)
+    # for ann in anns:
+    #     seg = np.reshape(ann['segmentation'], (-1, 2))
+    #     poly = np.array(seg, np.int32)
+    #
+    #     img = cv.imread(get_path(coco, image_id=ann['image_id']))
+    #     mask = cv.fillPoly(np.zeros(img.shape, img.dtype), [poly], (255, 255, 255))
+    #     mask = image2binary(image=mask)
+    #     bbox = compute_bbox(mask)
+    #     true_box = ann['bbox']
+    #     print(bbox, true_box)
