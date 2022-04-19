@@ -137,7 +137,7 @@ def cut_paste(coco: COCO, cat_name, num, image_shape=None,
         image_moved = cv.warpAffine(ann, mat_translation, (image_wide, image_height))
         mask = image2binary(image_moved)
         bbox = compute_bbox(mask)
-        seg = mask2polygon(mask)
+        seg = mask2seg(mask)
 
         # cv.imshow('image_moved', image_moved)
         # cv.imshow('mask', mask)

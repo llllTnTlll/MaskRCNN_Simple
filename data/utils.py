@@ -46,3 +46,4 @@ if __name__ == "__main__":
     rec2 = wh2xy([20, 10, 20, 10])
     iou = compute_iou(rec1, rec2)
     print(iou)
+
