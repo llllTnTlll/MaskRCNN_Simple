@@ -172,22 +172,6 @@ def cut_paste(coco: COCO, cat_name, num, image_shape=None,
                     iscrowd=0,
                 )
             )
-def translational(ann, mask_info):
-    [x, y, w, h] = mask_info['bbox']
-    left_max = x
-    right_max = image_wide - x - w
-    top_max = image_height - y - h
-    bottom_max = y
-
-
-def enhance(coco: COCO, manners, cat_name, num):
-    mask_info = get_mask(coco, cat_name, num)
-    anns = extract_ann(coco, mask_info)
-
-    # 对提取出的annotation进行仿射变换
-    for n in range(num):
-
-
 
 
 if __name__ == "__main__":
