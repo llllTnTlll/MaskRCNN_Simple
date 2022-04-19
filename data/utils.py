@@ -34,10 +34,10 @@ def compute_iou(rec1, rec2):
 
 def wh2xy(box):
     x, y, w, h = box
-    x0 = x - w/2
-    y0 = y - h/2
-    x1 = x + w/2
-    y1 = y + h/2
+    x0 = int(x - w/2)
+    y0 = int(y - h/2)
+    x1 = int(x + w/2)
+    y1 = int(y + h/2)
     return x0, y0, x1, y1
 
 

@@ -180,7 +180,7 @@ if __name__ == "__main__":
     # ids = coco.getAnnIds(imgIds=1)
     # anns = coco.loadAnns(ids)
     # for ann in anns:
-    #     seg = np.reshape(ann['segmentation'], (-1, 2))
+    #     cop
     #     poly = np.array(seg, np.int32)
     #
     #     img = cv.imread(get_path(coco, image_id=ann['image_id']))

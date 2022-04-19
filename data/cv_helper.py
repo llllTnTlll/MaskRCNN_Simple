@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 
 
-def mask2polygon(mask):
+def mask2seg(mask):
     """
     输入二值化掩膜获得polygon标注信息
     :param mask:
@@ -16,6 +16,14 @@ def mask2polygon(mask):
         if len(contour_list) > 4:  # and cv2.contourArea(contour)>10000
             segmentation.append(contour_list)
     return segmentation
+
+
+def seg2mask(img_shape, seg):
+    polygons = np.reshape(seg, (-1, 2))
+    mask = np.zeros(img_shape, dtype=np.uint8)
+    polygons = np.asarray([polygons], np.int32)  # 这里必须是int32，其他类型使用fillPoly会报错
+    cv.fillConvexPoly(mask, polygons, 255)
+    return mask
 
 
 def image2binary(image):

@@ -45,14 +45,14 @@ def train_with_coco(config: Config):
 
     # custom data class
     classes = ['_background_', 'rectangle', 'triangle', 'circle']
-    coco_annotation_file = r"C:\Users\ZHIYUAN\Downloads\temp\coco\annotations.json"
-    weight_path = r"C:\Users\ZHIYUAN\Desktop\project\MaskRCNN_Simple\weight\mrcnn-epoch-20.h5"
+    coco_annotation_file = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
+    weight_path = r"C:\Users\zhiyuan\Desktop\temp\coco\mrcnn-epoch-20.h5"
 
     # tensorboard 日志目录
     log_dir = "../logs"
     summary_writer = tf.summary.create_file_writer(log_dir)
     data_train = CoCoDataGenrator(
-        coco_annotation_file=coco_annotation_file,
+        coco_annotation_file= coco_annotation_file,
         img_shape=image_shape,
         batch_size=batch_size,
         max_instances=detection_max_instances,
@@ -63,7 +63,7 @@ def train_with_coco(config: Config):
 
     mrcnn = MaskRCNN(is_training=True,
                      config=config)
-    mrcnn.load_weights(filepath=weight_path)
+    # mrcnn.load_weights(filepath=weight_path)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
     anchors = get_anchors(image_shape=image_shape,
