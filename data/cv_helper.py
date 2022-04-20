@@ -18,7 +18,7 @@ def mask2seg(mask):
     return segmentation
 
 
-def seg2mask(img_shape, seg):
+def seg2mask(img_shape, seg, fill_int):
     polygons = np.reshape(seg, (-1, 2))
     mask = np.zeros(img_shape, dtype=np.uint8)
     polygons = np.asarray([polygons], np.int32)  # 这里必须是int32，其他类型使用fillPoly会报错
@@ -26,18 +26,18 @@ def seg2mask(img_shape, seg):
     return mask
 
 
-def seg_iou(seg1, seg2, image_shape):
-    polygon1 = np.reshape(seg1, (-1, 2))
-    polygon2 = np.reshape(seg2, (-1, 2))
-    data1 = np.array(polygon1, np.int32)
-    data2 = np.array(polygon2, np.int32)
+def segs2mask(img_shape, segs):
+    total_mask = np.zeros(img_shape, dtype=np.uint8)
+    for seg in segs:
+        mask = seg2mask(img_shape, seg, 255)
+        total_mask = cv.add(total_mask, mask)
+    return total_mask
 
-    mask1 = np.zeros(image_shape, np.uint8)
-    mask2 = np.zeros(image_shape, np.uint8)
 
-    cv.fillPoly(mask1, [data1], 1)
-    cv.fillPoly(mask2, [data2], 1)
-    mask = mask1 + mask2
+def mask_iou(mask1, mask2):
+    ret1, binary1 = cv.threshold(mask1, 125, 1, cv.THRESH_BINARY)
+    ret2, binary2 = cv.threshold(mask2, 125, 1, cv.THRESH_BINARY)
+    mask = binary1 + binary2
     inter = (mask == 2).sum()
 
     if inter > 0:
@@ -51,3 +51,4 @@ def image2binary(image):
     gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
     ret, binary = cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
     return binary
+

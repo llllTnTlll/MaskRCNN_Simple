@@ -2,9 +2,10 @@ from pycocotools.coco import COCO
 import os
 import cv2 as cv
 from utils import compute_bbox
-from cv_helper import mask2seg, seg2mask
+from cv_helper import mask2seg, seg2mask, segs2mask, mask_iou
 import random
 import numpy as np
+import json
 
 
 class Deformation:
@@ -77,7 +78,7 @@ def get_anns(coco: COCO, cat_name, quantity):
         seg = info['segmentation']
 
         image = cv.imread(get_path(coco, image_id))
-        mask = seg2mask(image_shapes, seg)
+        mask = seg2mask(image_shapes, seg, 255)
         ann = cv.copyTo(image, mask)
         anns.append(dict(
             shapes=image_shapes,
@@ -87,7 +88,7 @@ def get_anns(coco: COCO, cat_name, quantity):
     return coco_infos, anns
 
 
-def enhance(coco_info, ann, mode_list):
+def do_deformation(coco_info, ann, mode_list):
     deformation = Deformation()
     for mode in mode_list:
         if hasattr(deformation, mode):
@@ -99,9 +100,41 @@ def enhance(coco_info, ann, mode_list):
     return coco_info, ann
 
 
+def enhance_apply(file_path, coco_infos, anns, mode_list):
+    # 获取数据集当前的基本信息
+    json_labels = json.load(open(file_path, 'r'))
+    image_num = len(json_labels['images'])
+    for i in range(len(anns)):
+        targeted = False
+        while not targeted:
+            coco_info, ann = do_deformation(coco_infos[i], anns[i], ['translate'])
+
+            # 获取被插入图像全局mask
+            target_id = random.randint(0, image_num - 1)
+            img_info = coco.loadImgs(target_id)[0]
+            img_shape = (img_info['height'], img_info['width'])
+            ann_ids = coco.getAnnIds(imgIds=target_id)
+            target_anns = coco.loadAnns(ann_ids)
+            target_segs = []
+            for target_ann in target_anns:
+                target_segs.append(target_ann['segmentation'])
+            target_mask = segs2mask(img_shape, target_segs)
+
+            # 验证交并比
+            iou = mask_iou(ann['mask'], target_mask)
+            print(iou)
+            add = cv.addWeighted(ann['mask'], 0.8, target_mask, 0.2, 0)
+            cv.imshow('ann', ann['mask'])
+            cv.imshow('target', target_mask)
+            cv.imshow('added', add)
+            cv.waitKey()
+            if iou == 0:
+                break
+
+
 if __name__ == '__main__':
-    file_path = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
-    c = get_coco(file_path)
-    coco_infos, anns = get_anns(c, 'rectangle', 1)
-    c, a = enhance(coco_infos[0], anns[0], ['translate'])
+    path = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
+    c = get_coco(path)
+    _coco_infos, _anns = get_anns(c, 'rectangle', 4)
+    enhance_apply(c, path, _coco_infos, _anns, ['translate'])
 
