@@ -3,17 +3,17 @@ from pycocotools.coco import COCO
 from data.cv_helper import segs2mask
 import cv2 as cv
 
-path = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
-coco = COCO(annotation_file=path)
-for i in range(11):
-    # 获取被插入图像全局mask
-    img_info = coco.loadImgs(i)[0]
-    img_shape = (img_info['height'], img_info['width'])
-    ann_ids = coco.getAnnIds(imgIds=i)
-    target_anns = coco.loadAnns(ann_ids)
-    target_segs = []
-    for target_ann in target_anns:
-        target_segs.append(target_ann['segmentation'])
-    target_mask = segs2mask(img_shape, target_segs)
-    cv.imshow('', target_mask)
-    cv.waitKey()
+# path = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
+# coco = COCO(annotation_file=path)
+# image_id = 1
+# ann_ids = coco.getAnnIds(imgIds=image_id)
+# anns = coco.loadAnns(ann_ids)
+# segs = []
+# for ann in anns:
+#     segs.append(ann['segmentation'])
+# mask = segs2mask((512, 512), segs)
+# cv.imshow('', mask)
+# cv.waitKey()
+img = cv.imread(r"C:\Users\zhiyuan\Desktop\temp\coco\JPEGImages\2.jpg", cv.COLOR_BGR2RGB)
+cv.imshow('', img)
+cv.waitKey()

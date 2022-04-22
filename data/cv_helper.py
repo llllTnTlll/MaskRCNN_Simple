@@ -18,7 +18,7 @@ def mask2seg(mask):
     return segmentation
 
 
-def seg2mask(img_shape, seg, fill_int):
+def seg2mask(img_shape, seg):
     polygons = np.reshape(seg, (-1, 2))
     mask = np.zeros(img_shape, dtype=np.uint8)
     polygons = np.asarray([polygons], np.int32)  # 这里必须是int32，其他类型使用fillPoly会报错
@@ -29,7 +29,7 @@ def seg2mask(img_shape, seg, fill_int):
 def segs2mask(img_shape, segs):
     total_mask = np.zeros(img_shape, dtype=np.uint8)
     for seg in segs:
-        mask = seg2mask(img_shape, seg, 255)
+        mask = seg2mask(img_shape, seg)
         total_mask = cv.add(total_mask, mask)
     return total_mask
 

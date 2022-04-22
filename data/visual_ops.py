@@ -3,6 +3,10 @@ import random
 import colorsys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+import imgviz
+import os
+from pycocotools.coco import COCO
+from cv_helper import seg2mask
 
 
 def draw_bounding_box(im, cls, scores, x_min, y_min, x_max, y_max, thickness=2, color=(11, 252, 3), txt_size=0.35):
@@ -104,6 +108,52 @@ def _random_colors(N, bright=True):
     colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
     random.shuffle(colors)
     return colors
+
+
+def coco_visual(annotation_path, img_folder):
+    coco = COCO(annotation_file=annotation_path)
+    img_list = []
+    for nm in os.listdir(img_folder):
+        if nm[-3:] in ['jpg', 'png']:
+            img_list.append(nm)
+
+    base_path = os.path.split(annotation_path)[0]
+    for i in range(len(img_list)):
+        # 获取对应图像
+        img_info = coco.loadImgs(ids=i)[0]
+        img_path = os.path.join(base_path, img_info['file_name'])
+        img_name = os.path.split(img_info['file_name'])[1]
+        img_shape = (img_info['height'], img_info['width'])
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # 获取对应图像标注
+        ann_ids = coco.getAnnIds(imgIds=i)
+        anns = coco.loadAnns(ids=ann_ids)
+        masks = []
+        labels = []
+        captions = []
+        for ann in anns:
+            mask = seg2mask(img_shape, ann['segmentation'])
+            mask = mask.astype(bool)
+            masks.append(mask)
+
+            label = ann['category_id']
+            labels.append(label)
+
+            caption = coco.loadCats(ids=label)[0]['name']
+            captions.append(caption)
+
+        viz = imgviz.instances2rgb(
+            image=img,
+            labels=labels,
+            masks=masks,
+            captions=captions,
+            font_size=15,
+            line_width=2,
+        )
+        save_path = os.path.join(base_path, 'Visualization', img_name)
+        imgviz.io.imsave(save_path, viz)
 
 
 if __name__ == "__main__":
