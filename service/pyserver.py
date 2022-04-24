@@ -4,9 +4,12 @@ import json
 
 
 listening_thread_exit = False
+mydata = {
+    "img_data": "img",
+    "result": "result"
+}
 
 
-# socket监听线程
 class RespondThread(threading.Thread):
     def __init__(self, max_link):
         super().__init__()
@@ -23,37 +26,26 @@ class RespondThread(threading.Thread):
             while not listening_thread_exit:
                 data_socket, addr = listener.accept()
                 # 开启全新的通信线程
-                t = threading.Thread(target=send_pck(data_socket, addr))
+                t = threading.Thread(target=distribution(data_socket, addr))
                 t.start()
 
 
-def send_pck(data_socket, addr):
-    """
-    线程池Task
-    根据收到的指示回复信息
-    :param data_socket:
-    :param addr:
-    :return:
-    """
+def distribution(data_socket, addr):
     print('{} connected'.format(addr))
-    task_exit = False
-    while not task_exit:
-        try:
-            # 获取接收信息长度
-            length = int(data_socket.recv(8))
-            pck = unpack_json(recv_pack(data_socket, length))
-            print(pck)
-            # if info == b'camera1':
-            #     data = data_pack(frame1, 100)
-            #     # 先发送数据长度信息
-            #     data_socket.send(str.encode(str(len(data)).ljust(32)))
-            #     # 发送图片数据
-            #     data_socket.send(data)
-            #     print('camera1 send')
+    length = int(data_socket.recv(8))
+    command_pkg = unpack_json(recv_pack(data_socket, length))
 
-        except ConnectionResetError:
-            task_exit = True
-    print("{} disconnected".format(addr))
+    if command_pkg['pkg_type'] == 'command':
+        while True:
+            # TODO: 反射调用指定命令
+            length, data_pkg = pack_json(mydata)
+            try:
+                data_socket.send(length)
+                data_socket.send(data_pkg)
+            except ConnectionResetError as e:
+                print(repr(e))
+                print('{} disconnected'.format(addr))
+                return
 
 
 def recv_pack(sock, count):
@@ -75,15 +67,16 @@ def recv_pack(sock, count):
 
 
 def pack_json(data):
-    pck = [{
+    pck = {
         "pkg_type": "data",
-        "img_data": data['img'],
+        "img_data": data['img_data'],
         "result": data['result']
-    }]
+    }
     str_json = json.dumps(pck)
     byte_json = str.encode(str_json)
-    length = len(byte_json)
-    return length, byte_json
+    length = str(len(byte_json)).ljust(8)
+    byte_length = str.encode(length)
+    return byte_length, byte_json
 
 
 def unpack_json(bytes_json):
@@ -93,12 +86,5 @@ def unpack_json(bytes_json):
 
 
 if __name__ == '__main__':
-    # d = dict(
-    #     img='imgdata',
-    #     result='result'
-    # )
-    # _, b = pack_json(d)
-    # j = unpack_json(b)
     respond_thread = RespondThread(max_link=10)
     respond_thread.start()
-
