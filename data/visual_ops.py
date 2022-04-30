@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 import imgviz
 import os
 from pycocotools.coco import COCO
-from cv_helper import seg2mask
+from data.cv_helper import seg2mask
 
 
 def draw_bounding_box(im, cls, scores, x_min, y_min, x_max, y_max, thickness=2, color=(11, 252, 3), txt_size=0.35):

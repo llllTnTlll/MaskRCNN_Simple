@@ -1,6 +1,8 @@
 import os
 import tensorflow as tf
 import numpy as np
+
+from data.coco2tfrecord import parse_coco_segment_tfrecord
 from model.mask_rcnn import MaskRCNN
 from model.anchors_ops import get_anchors
 from model.layers import build_rpn_targets, DetectionMaskLayer
@@ -9,10 +11,7 @@ from model.losses import rpn_bbox_loss, rpn_class_loss, mrcnn_class_loss, mrcnn_
 from data.generate_coco_data import CoCoDataGenrator
 from data.visual_ops import draw_bounding_box, draw_instance
 from model.config import Config
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
-myconfig = Config()
+from data.coco2tfrecord import generate_coco_segment_tfrecord
 
 
 def train_with_coco(config: Config):
@@ -44,7 +43,7 @@ def train_with_coco(config: Config):
     # coco_annotation_file = "../data/coco2017/instances_val2017.json"
 
     # custom data class
-    classes = ['_background_', 'rectangle', 'triangle', 'circle']
+    classes = config.CLASSES
     coco_annotation_file = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
     weight_path = r"C:\Users\zhiyuan\Desktop\temp\coco\mrcnn-epoch-20.h5"
 
@@ -94,8 +93,8 @@ def train_with_coco(config: Config):
                 print(batch, " gt_boxes: ", gt_boxes)
                 continue
 
-            if epoch % 20 == 0 and epoch != 0:
-                mrcnn.model.save_weights("./mrcnn-epoch-{}.h5".format(epoch))
+            if epoch % 5 == 0 and epoch != 0:
+                mrcnn.model.save_weights("../weights/mrcnn-epoch-{}.h5".format(epoch))
 
             with tf.GradientTape() as tape:
                 # 模型输出
@@ -179,8 +178,175 @@ def train_with_coco(config: Config):
                     with summary_writer.as_default():
                         tf.summary.image("imgs/gt,pred,epoch{}".format(epoch), summ_imgs, step=batch)
 
-    mrcnn.model.save_weights("../weight/mrcnn-epoch-{}.h5".format(epochs))
+    mrcnn.model.save_weights("../weights/mrcnn-epoch-{}.h5".format(epochs))
+
+
+def train_with_tfrecord(config: Config, log_dir, tfrec_path):
+    """ 预先将数据处理成tfrecord格式，再进行训练，速度可以快很多
+
+    :param tfrec_path: tfrecord 数据路径
+    """
+
+    epochs = config.EPOCHS
+    batch_size = config.BATCH_SIZE
+    image_shape = config.IMAGE_SHAPE
+    detection_max_instances = config.DETECTION_MAX_INSTANCES
+    scales = config.ANCHOR_SCALES
+    ratios = config.ANCHOR_RATIOS
+    feature_strides = config.FEATURE_STRIDE
+    anchor_stride = config.ANCHOR_STRIDE
+    pixel_mean = config.PIXEL_MEAN
+    bbox_std_dev = config.BBOX_STD_DEV
+    detection_nms_thres = config.DETECTION_NMS_THRES
+    detection_min_confidence = config.DETECTION_MIN_CONFIDENCE
+    myclass = config.CLASSES
+
+    vsg_train = parse_coco_segment_tfrecord(
+        tfrec_path=tfrec_path,
+        repeat=1,
+        shuffle_buffer=800,
+        batch=config.BATCH_SIZE
+    )
+    # tfrecord没法获取数据的size
+    total_batch_size = 61
+    # for _ in vsg_train:
+    #     total_batch_size += 1
+
+    mrcnn = MaskRCNN(is_training=True,
+                     config=config)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+    anchors = get_anchors(image_shape=image_shape,
+                          scales=scales,
+                          ratios=ratios,
+                          feature_strides=feature_strides,
+                          anchor_stride=anchor_stride)
+    all_anchors = np.stack([anchors, anchors], axis=0)
+    # tensorboard 日志目录
+    summary_writer = tf.summary.create_file_writer(log_dir)
+
+    # for epoch in range(epochs):
+    #     for batch in range(vsg_train.total_batch_size):
+    #         imgs, masks, gt_boxes, labels = vsg_train.next_batch()
+    for epoch in range(epochs):
+        batch = 0
+        for imgs, masks, gt_boxes, labels, rpn_target_match, rpn_target_box in vsg_train:
+            print(np.shape(imgs))
+            print(np.shape(masks))
+            print(np.shape(gt_boxes))
+            print("-------{}--------".format(batch))
+
+            batch += 1
+            if np.sum(gt_boxes) <= 0.:
+                print(batch, " gt_boxes: ", gt_boxes)
+                continue
+
+            if epoch % 20 == 0 and epoch != 0:
+                mrcnn.model.save_weights("./mrcnn-epoch-{}.h5".format(epoch))
+
+            with tf.GradientTape() as tape:
+                # 模型输出
+                # rpn_target_match, rpn_target_box, rpn_class_logits, rpn_class, rpn_bbox_delta, rois, \
+                rpn_class_logits, rpn_class, rpn_bbox_delta, rois, \
+                mrcnn_target_class_ids, mrcnn_target_bbox, mrcnn_target_mask, mrcnn_class_logits, \
+                mrcnn_class, mrcnn_bbox, mrcnn_mask = \
+                    mrcnn.model([imgs, gt_boxes, labels, masks, all_anchors], training=True)
+                # mrcnn([imgs, gt_boxes, labels, masks, all_anchors], training=True)
+
+                # 计算损失
+                rpn_c_loss = rpn_class_loss(rpn_target_match, rpn_class_logits)
+                rpn_b_loss = rpn_bbox_loss(rpn_target_box, rpn_target_match, rpn_bbox_delta)
+                mrcnn_c_loss = mrcnn_class_loss(mrcnn_target_class_ids, mrcnn_class_logits, rois)
+                mrcnn_b_loss = mrcnn_bbox_loss(mrcnn_target_bbox, mrcnn_target_class_ids, mrcnn_bbox, rois)
+                mrcnn_m_bc_loss = mrcnn_mask_loss(mrcnn_target_mask, mrcnn_target_class_ids, mrcnn_mask, rois)
+                total_loss = rpn_c_loss + rpn_b_loss + mrcnn_c_loss + mrcnn_b_loss + mrcnn_m_bc_loss
+
+                # 梯度更新
+                grad = tape.gradient(total_loss, mrcnn.model.trainable_variables)
+                optimizer.apply_gradients(zip(grad, mrcnn.model.trainable_variables))
+
+                # tensorboard 损失曲线
+                with summary_writer.as_default():
+                    tf.summary.scalar('loss/rpn_class_loss', rpn_c_loss,
+                                      step=epoch * total_batch_size + batch)
+                    tf.summary.scalar('loss/rpn_bbox_loss', rpn_b_loss,
+                                      step=epoch * total_batch_size + batch)
+                    tf.summary.scalar('loss/mrcnn_class_loss', mrcnn_c_loss,
+                                      step=epoch * total_batch_size + batch)
+                    tf.summary.scalar('loss/mrcnn_bbox_loss', mrcnn_b_loss,
+                                      step=epoch * total_batch_size + batch)
+                    tf.summary.scalar('loss/mrcnn_mask_binary_crossentropy_loss', mrcnn_m_bc_loss,
+                                      step=epoch * total_batch_size + batch)
+                    tf.summary.scalar('loss/total_loss', total_loss,
+                                      step=epoch * total_batch_size + batch)
+
+                # 非极大抑制与其他条件过滤
+                # [b, num_detections, (y1, x1, y2, x2, class_id, score)], [b, num_detections, h, w, num_classes]
+                detections, pred_masks = DetectionMaskLayer(
+                    batch_size=batch_size,
+                    bbox_std_dev=bbox_std_dev,
+                    detection_max_instances=detection_max_instances,
+                    detection_nms_thres=detection_nms_thres,
+                    detection_min_confidence=detection_min_confidence
+                )(rois, mrcnn_class, mrcnn_bbox, mrcnn_mask, np.array([0, 0, 1, 1], np.float32))
+
+                for i in range(batch_size):
+                    # 将数据处理成原图大小
+                    boxes, class_ids, scores, full_masks = mrcnn.unmold_detections(
+                        detections=detections[i],
+                        mrcnn_mask=pred_masks[i],
+                        original_image_shape=image_shape)
+
+                    # 预测结果
+                    pred_img = imgs[i].numpy().copy() + pixel_mean
+                    for j in range(np.shape(class_ids)[0]):
+                        score = scores[j]
+                        if score > 0.5:
+                            class_name = myclass[class_ids[j]]
+                            ymin, xmin, ymax, xmax = boxes[j]
+                            pred_mask_j = full_masks[:, :, j]
+                            pred_img = draw_instance(pred_img, pred_mask_j)
+                            pred_img = draw_bounding_box(pred_img, class_name, score, xmin, ymin, xmax, ymax)
+
+                    # ground true
+                    gt_img = imgs[i].numpy().copy() + pixel_mean
+                    active_num = len(np.where(labels[i])[0])
+                    for j in range(active_num):
+                        l = labels[i][j]
+                        class_name = myclass[l]
+                        ymin, xmin, ymax, xmax = gt_boxes[i][j]
+                        gt_mask_j = unmold_mask(np.array(masks[i][:, :, j], dtype=np.float32), gt_boxes[i][j],
+                                                image_shape)
+                        gt_img = draw_bounding_box(gt_img, class_name, l, xmin, ymin, xmax, ymax)
+                        gt_img = draw_instance(gt_img, gt_mask_j)
+
+                    concat_imgs = tf.concat([gt_img[:, :, ::-1], pred_img[:, :, ::-1]], axis=1)
+                    summ_imgs = tf.expand_dims(concat_imgs, 0)
+                    summ_imgs = tf.cast(summ_imgs, dtype=tf.uint8)
+                    with summary_writer.as_default():
+                        tf.summary.image("imgs/gt,pred,epoch{}".format(epoch), summ_imgs, step=batch)
 
 
 if __name__ == "__main__":
-    train_with_coco(config=myconfig)
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    gpus = tf.config.list_physical_devices("GPU")
+    if gpus:
+        gpu0 = gpus[0]  # 如果有多个GPU，仅使用第0个GPU
+        tf.config.experimental.set_memory_growth(gpu0, True)  # 设置GPU显存用量按需使用
+        # 或者也可以设置GPU显存为固定使用量(例如：4G)
+        # tf.config.experimental.set_virtual_device_configuration(gpu0,
+        # [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=4096)])
+        tf.config.set_visible_devices([gpu0], "GPU")
+
+    myconfig = Config()
+    if myconfig.TRAIN_WITH_TFRECORD:
+        generate_coco_segment_tfrecord(myconfig,
+                                       is_training=True,
+                                       tfrec_path='../coco_tfrec/',
+                                       coco_annotation_file=r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json")
+
+        train_with_tfrecord(config=myconfig,
+                            log_dir="../logs",
+                            tfrec_path=r"C:\Users\zhiyuan\Desktop\work\python\MaskRCNN_Simple\coco_tfrec\coco_train_seg.tfrec")
+
+
+

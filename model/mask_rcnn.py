@@ -13,6 +13,7 @@ from model.losses import rpn_bbox_loss, rpn_class_loss
 from model.losses import mrcnn_mask_loss, mrcnn_class_loss, mrcnn_bbox_loss
 from data.visual_ops import draw_bounding_box, draw_instance
 from model.config import Config
+from datetime import datetime
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -446,228 +447,77 @@ class MaskRCNN:
                 hdf5_format.load_weights_from_hdf5_group(f, layers)
             print("weight loaded")
 
-    # def train_with_tfrecord(self, epochs, log_dir, tfrec_path):
-    #     """ 预先将数据处理成tfrecord格式，再进行训练，速度可以快很多
-    #
-    #     :param tfrec_path: tfrecord 数据路径
-    #     """
-    #
-    #     vsg_train = parse_voc_segment_tfrecord(
-    #         is_training=True,
-    #         tfrec_path=tfrec_path,
-    #         repeat=1,
-    #         shuffle_buffer=800,
-    #         batch=self.batch_size
-    #     )
-    #     # tfrecord没法获取数据的size
-    #     total_batch_size = 0
-    #     for _ in vsg_train:
-    #         total_batch_size += 1
-    #
-    #     mrcnn = self.model
-    #     optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-    #     anchors = get_anchors(image_shape=self.image_shape,
-    #                           scales=self.scales,
-    #                           ratios=self.ratios,
-    #                           feature_strides=self.feature_strides,
-    #                           anchor_stride=self.anchor_stride)
-    #     all_anchors = np.stack([anchors, anchors], axis=0)
-    #     # tensorboard 日志目录
-    #     summary_writer = tf.summary.create_file_writer(log_dir)
-    #
-    #     # for epoch in range(epochs):
-    #     #     for batch in range(vsg_train.total_batch_size):
-    #     #         imgs, masks, gt_boxes, labels = vsg_train.next_batch()
-    #     for epoch in range(epochs):
-    #         batch = 0
-    #         for imgs, masks, gt_boxes, labels, rpn_target_match, rpn_target_box in vsg_train:
-    #             print(np.shape(imgs))
-    #             print(np.shape(masks))
-    #             print(np.shape(gt_boxes))
-    #             print("-------{}--------".format(batch))
-    #
-    #             batch += 1
-    #             if np.sum(gt_boxes) <= 0.:
-    #                 print(batch, " gt_boxes: ", gt_boxes)
-    #                 continue
-    #
-    #             if epoch % 20 == 0 and epoch != 0:
-    #                 mrcnn.save_weights("./mrcnn-epoch-{}.h5".format(epoch))
-    #
-    #             with tf.GradientTape() as tape:
-    #                 # 模型输出
-    #                 # rpn_target_match, rpn_target_box, rpn_class_logits, rpn_class, rpn_bbox_delta, rois, \
-    #                 rpn_class_logits, rpn_class, rpn_bbox_delta, rois, \
-    #                 mrcnn_target_class_ids, mrcnn_target_bbox, mrcnn_target_mask, mrcnn_class_logits, \
-    #                 mrcnn_class, mrcnn_bbox, mrcnn_mask = \
-    #                     mrcnn([imgs, gt_boxes, labels, masks, all_anchors], training=True)
-    #                 # mrcnn([imgs, gt_boxes, labels, masks, all_anchors], training=True)
-    #
-    #                 # 计算损失
-    #                 rpn_c_loss = rpn_class_loss(rpn_target_match, rpn_class_logits)
-    #                 rpn_b_loss = rpn_bbox_loss(rpn_target_box, rpn_target_match, rpn_bbox_delta)
-    #                 mrcnn_c_loss = mrcnn_class_loss(mrcnn_target_class_ids, mrcnn_class_logits, rois)
-    #                 mrcnn_b_loss = mrcnn_bbox_loss(mrcnn_target_bbox, mrcnn_target_class_ids, mrcnn_bbox, rois)
-    #                 mrcnn_m_bc_loss = mrcnn_mask_loss(mrcnn_target_mask, mrcnn_target_class_ids, mrcnn_mask, rois)
-    #                 total_loss = rpn_c_loss + rpn_b_loss + mrcnn_c_loss + mrcnn_b_loss + mrcnn_m_bc_loss
-    #
-    #                 # 梯度更新
-    #                 grad = tape.gradient(total_loss, mrcnn.trainable_variables)
-    #                 optimizer.apply_gradients(zip(grad, mrcnn.trainable_variables))
-    #
-    #                 # tensorboard 损失曲线
-    #                 with summary_writer.as_default():
-    #                     tf.summary.scalar('loss/rpn_class_loss', rpn_c_loss,
-    #                                       step=epoch * total_batch_size + batch)
-    #                     tf.summary.scalar('loss/rpn_bbox_loss', rpn_b_loss,
-    #                                       step=epoch * total_batch_size + batch)
-    #                     tf.summary.scalar('loss/mrcnn_class_loss', mrcnn_c_loss,
-    #                                       step=epoch * total_batch_size + batch)
-    #                     tf.summary.scalar('loss/mrcnn_bbox_loss', mrcnn_b_loss,
-    #                                       step=epoch * total_batch_size + batch)
-    #                     tf.summary.scalar('loss/mrcnn_mask_binary_crossentropy_loss', mrcnn_m_bc_loss,
-    #                                       step=epoch * total_batch_size + batch)
-    #                     tf.summary.scalar('loss/total_loss', total_loss,
-    #                                       step=epoch * total_batch_size + batch)
-    #
-    #                 # 非极大抑制与其他条件过滤
-    #                 # [b, num_detections, (y1, x1, y2, x2, class_id, score)], [b, num_detections, h, w, num_classes]
-    #                 detections, pred_masks = DetectionMaskLayer(
-    #                     batch_size=self.batch_size,
-    #                     bbox_std_dev=self.bbox_std_dev,
-    #                     detection_max_instances=self.detection_max_instances,
-    #                     detection_nms_thres=self.detection_nms_thres,
-    #                     detection_min_confidence=self.detection_min_confidence
-    #                 )(rois, mrcnn_class, mrcnn_bbox, mrcnn_mask, np.array([0, 0, 1, 1], np.float32))
-    #
-    #                 for i in range(self.batch_size):
-    #                     # 将数据处理成原图大小
-    #                     boxes, class_ids, scores, full_masks = self.unmold_detections(
-    #                         detections=detections[i],
-    #                         mrcnn_mask=pred_masks[i],
-    #                         original_image_shape=self.image_shape)
-    #
-    #                     # 预测结果
-    #                     pred_img = imgs[i].numpy().copy() + self.pixel_mean
-    #                     for j in range(np.shape(class_ids)[0]):
-    #                         score = scores[j]
-    #                         if score > 0.5:
-    #                             class_name = self.classes[class_ids[j]]
-    #                             ymin, xmin, ymax, xmax = boxes[j]
-    #                             pred_mask_j = full_masks[:, :, j]
-    #                             pred_img = draw_instance(pred_img, pred_mask_j)
-    #                             pred_img = draw_bounding_box(pred_img, class_name, score, xmin, ymin, xmax, ymax)
-    #
-    #                     # ground true
-    #                     gt_img = imgs[i].numpy().copy() + self.pixel_mean
-    #                     active_num = len(np.where(labels[i])[0])
-    #                     for j in range(active_num):
-    #                         l = labels[i][j]
-    #                         class_name = self.classes[l]
-    #                         ymin, xmin, ymax, xmax = gt_boxes[i][j]
-    #                         gt_mask_j = unmold_mask(np.array(masks[i][:, :, j],dtype=np.float32), gt_boxes[i][j], self.image_shape)
-    #                         gt_img = draw_bounding_box(gt_img, class_name, l, xmin, ymin, xmax, ymax)
-    #                         gt_img = draw_instance(gt_img, gt_mask_j)
-    #
-    #                     concat_imgs = tf.concat([gt_img[:, :, ::-1], pred_img[:, :, ::-1]], axis=1)
-    #                     summ_imgs = tf.expand_dims(concat_imgs, 0)
-    #                     summ_imgs = tf.cast(summ_imgs, dtype=tf.uint8)
-    #                     with summary_writer.as_default():
-    #                         tf.summary.image("imgs/gt,pred,epoch{}".format(epoch), summ_imgs, step=batch)
-
-    # def test(self, model_path, log_dir, tfrec_path):
-    #     """ 测试评估"""
-    #
-    #     self.load_weights(model_path, by_name=True)
-    #     summary_writer = tf.summary.create_file_writer(log_dir)
-    #     vsg_train = parse_voc_segment_tfrecord(
-    #         is_training=True,
-    #         tfrec_path=tfrec_path,
-    #         repeat=1,
-    #         shuffle_buffer=800,
-    #         batch=self.batch_size
-    #     )
-    #
-    #     anchors = get_anchors(image_shape=self.image_shape,
-    #                           scales=self.scales,
-    #                           ratios=self.ratios,
-    #                           feature_strides=self.feature_strides,
-    #                           anchor_stride=self.anchor_stride)
-    #     all_anchors = np.stack([anchors] * self.batch_size, axis=0)
-    #
-    #     step = 0
-    #     for imgs, masks, gt_boxes, labels, rpn_target_match, rpn_target_box in vsg_train:
-    #         detections, mrcnn_class, mrcnn_bbox, mrcnn_mask = self.model.predict([imgs, all_anchors])
-    #         for i in range(self.batch_size):
-    #             step += 1
-    #             boxes, class_ids, scores, full_masks = self.unmold_detections(detections=detections[i],
-    #                                                                           mrcnn_mask=mrcnn_mask[i],
-    #                                                                           original_image_shape=self.image_shape)
-    #             # 预测结果
-    #             pred_img = imgs[i].numpy().copy() + self.pixel_mean
-    #             for j in range(np.shape(class_ids)[0]):
-    #                 score = scores[j]
-    #                 if score > 0.5:
-    #                     class_name = self.classes[class_ids[j]]
-    #                     ymin, xmin, ymax, xmax = boxes[j]
-    #                     pred_mask_j = full_masks[:, :, j]
-    #                     pred_img = draw_instance(pred_img, pred_mask_j)
-    #                     pred_img = draw_bounding_box(pred_img, class_name, score, xmin, ymin, xmax, ymax)
-    #
-    #             # ground true
-    #             gt_img = imgs[i].numpy().copy() + self.pixel_mean
-    #             active_num = len(np.where(labels[i])[0])
-    #             for j in range(active_num):
-    #                 l = labels[i][j]
-    #                 class_name = self.classes[l]
-    #                 ymin, xmin, ymax, xmax = gt_boxes[i][j]
-    #                 gt_mask_j = unmold_mask(np.array(masks[i][:,:, j],dtype=np.float32), gt_boxes[i][j], self.image_shape)
-    #                 gt_img = draw_bounding_box(gt_img, class_name, l, xmin, ymin, xmax, ymax)
-    #                 gt_img = draw_instance(gt_img, gt_mask_j)
-    #
-    #
-    #             concat_imgs = tf.concat([gt_img[:, :, ::-1], pred_img[:, :, ::-1]], axis=1)
-    #             summ_imgs = tf.expand_dims(concat_imgs, 0)
-    #             summ_imgs = tf.cast(summ_imgs, dtype=tf.uint8)
-    #             with summary_writer.as_default():
-    #                 tf.summary.image("imgs/gt,pred,epoch{}".format(step // 30), summ_imgs, step=step)
-
     def predict(self, image, anchors, draw_detect_res_figure=True):
-        """ 预测，输入的batch=1, batch跟随模型构建过程
+        """ 单图预测
 
-        :param image: [batch, h, w, c]
-        :param anchors: [batch, (y1, x1, y2, x2)]
+        :param image: [h, w, c]
+        :param anchors: [num_anchors, (y1, x1, y2, x2)]
 
-        :return boxes,class_ids,scores,masks
+        :return
+        boxes: [N, (y1, x1, y2, x2)] Bounding boxes in pixels
+        class_ids: [N] Integer class IDs for each bounding box
+        scores: [N] Float probability scores of the class_id
+        masks: [num_instances, height, width] Instance masks
         """
-        detections, mrcnn_class, mrcnn_bbox, mrcnn_mask = self.model.predict([image, anchors])
-        final_boxes = final_class_ids = final_scores = final_mask = []
-        for i in range(self.batch_size):
-            # 预测结果, 数据处理回原图大小
-            boxes, class_ids, scores, full_masks = self.unmold_detections(detections=detections[i],
-                                                                          mrcnn_mask=mrcnn_mask[i],
-                                                                          original_image_shape=self.image_shape)
-            final_boxes.append(boxes)
-            final_class_ids.append(class_ids)
-            final_scores.append(scores)
-            final_mask.append(full_masks)
 
-            # 检测结果保存图片
-            if draw_detect_res_figure:
-                if not os.path.isdir("../data/tmp"):
-                    os.mkdir("../data/tmp")
-                pred_img = image[i].copy() + self.pixel_mean
-                for j in range(np.shape(class_ids)[0]):
-                    score = scores[j]
-                    if score > 0.5:
-                        class_name = self.classes[class_ids[j]]
-                        ymin, xmin, ymax, xmax = boxes[j]
-                        pred_mask_j = full_masks[:, :, j]
-                        pred_img = draw_instance(pred_img, pred_mask_j)
-                        pred_img = draw_bounding_box(pred_img, class_name, score, xmin, ymin, xmax, ymax)
-                        pred_img = np.array(pred_img, dtype=np.uint8)
-                        cv2.imwrite("../data/tmp/{}.jpeg".format(i), pred_img)
+        im_shape = np.shape(image)
+        im_size_max = np.max(im_shape[0:2])
+        im_scale = float(self.image_shape[0]) / float(im_size_max)
 
-        return final_boxes, final_class_ids, final_scores, final_mask
+        # resize原始图片
+        im_resize = cv2.resize(image, None, None, fx=im_scale, fy=im_scale, interpolation=cv2.INTER_LINEAR)
+        im_resize_shape = np.shape(im_resize)
+        im_blob = np.zeros(self.image_shape, dtype=np.float32)
+        im_blob[0:im_resize_shape[0], 0:im_resize_shape[1], :] = im_resize
+        im_blob -= self.pixel_mean
+        im_blob = np.array([im_blob], dtype=np.float32)
+
+        # anchors加一个batch维度
+        anchors = np.array([anchors], dtype=np.float32)
+
+        start_time = datetime.now()
+        # predict
+        detections, mrcnn_class, mrcnn_bbox, mrcnn_mask = self.model.predict([im_blob, anchors])
+        end_time = datetime.now()
+        # 预测结果, 数据处理回input图片大小
+        boxes, class_ids, scores, full_masks = self.unmold_detections(detections=detections[0],
+                                                                      mrcnn_mask=mrcnn_mask[0],
+                                                                      original_image_shape=self.image_shape)
+
+        # 再把unmodel结果的mask和box处理回原图大小
+        boxes = np.array(boxes, dtype=np.float32)
+        b0 = np.maximum(np.minimum(boxes[:, 0] / im_scale, im_shape[0] - 1), 0)
+        b1 = np.maximum(np.minimum(boxes[:, 1] / im_scale, im_shape[1] - 1), 0)
+        b2 = np.maximum(np.minimum(boxes[:, 2] / im_scale, im_shape[0] - 1), 0)
+        b3 = np.maximum(np.minimum(boxes[:, 3] / im_scale, im_shape[1] - 1), 0)
+        origin_boxes = np.stack([b0, b1, b2, b3], axis=1)
+
+        origin_masks = []
+        for i in range(np.shape(full_masks)[2]):
+            origin_mask = cv2.resize(
+                np.array(full_masks[0:im_resize_shape[0], 0:im_resize_shape[1], i], dtype=np.float32),
+                (im_shape[1], im_shape[0]))
+            origin_mask = origin_mask > 0.5
+            origin_masks.append(origin_mask)
+
+        # 检测结果保存图片
+        if draw_detect_res_figure:
+            if not os.path.isdir("../data/tmp"):
+                os.mkdir("../data/tmp")
+            pred_img = image.copy()
+            for j in range(np.shape(class_ids)[0]):
+                score = scores[j]
+                # TODO: 纳入检测设置
+                if score > 0.9:
+                    class_name = self.classes[class_ids[j]]
+                    ymin, xmin, ymax, xmax = origin_boxes[j]
+                    pred_mask_j = origin_masks[j]
+                    pred_img = draw_instance(pred_img, pred_mask_j)
+                    pred_img = draw_bounding_box(pred_img, class_name, score, xmin, ymin, xmax, ymax)
+            pred_img = np.array(pred_img, dtype=np.uint8)
+            # cv2.imwrite("../data/tmp/test.jpeg", pred_img)
+
+        print(end_time - start_time)
+        return boxes, class_ids, scores, full_masks, pred_img
 
 

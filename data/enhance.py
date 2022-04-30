@@ -7,18 +7,7 @@ import random
 import numpy as np
 import json
 from visual_ops import coco_visual
-
-
-class NpEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        else:
-            return super(NpEncoder, self).default(obj)
+from service.json_serializer import NpEncoder
 
 
 class Deformation:
@@ -52,6 +41,11 @@ class Deformation:
         ann['mask'] = mask_tanslated
 
         return coco_info, ann
+
+    @staticmethod
+    def rotation(coco_info, ann):
+        image_height = ann['shapes'][0]
+        image_width = ann['shapes'][1]
 
 
 def get_coco(annotation_path):

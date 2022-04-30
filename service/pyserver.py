@@ -1,13 +1,13 @@
 import socket
 import threading
-import json
+from json_serializer import unpack_json, pack_json
+from sev_interface import Operations
+import glob
+import cv2 as cv
+import os
 
 
 listening_thread_exit = False
-mydata = {
-    "img_data": "img",
-    "result": "result"
-}
 
 
 class RespondThread(threading.Thread):
@@ -36,9 +36,23 @@ def distribution(data_socket, addr):
     command_pkg = unpack_json(recv_pack(data_socket, length))
 
     if command_pkg['pkg_type'] == 'command':
-        while True:
-            # TODO: 反射调用指定命令
-            length, data_pkg = pack_json(mydata)
+        operations = Operations()
+        command = command_pkg['command']
+
+        # TODO: 反射调用指定命令
+        if hasattr(operations, command):
+            method = getattr(operations, command)
+
+            img_dir = r"C:\Users\zhiyuan\Desktop\temp\test"
+            paths = glob.glob(os.path.join(img_dir, '*.jpg'))
+            imgs = []
+            for path in paths:
+                img = cv.imread(path)
+                imgs.append(img)
+
+            respond = method(imgs, "../weights/mrcnn-epoch-95.h5", None)
+            # 发送信息
+            length, data_pkg = pack_json(respond)
             try:
                 data_socket.send(length)
                 data_socket.send(data_pkg)
@@ -66,25 +80,7 @@ def recv_pack(sock, count):
     return pack
 
 
-def pack_json(data):
-    pck = {
-        "pkg_type": "data",
-        "img_data": data['img_data'],
-        "result": data['result']
-    }
-    str_json = json.dumps(pck)
-    byte_json = str.encode(str_json)
-    length = str(len(byte_json)).ljust(8)
-    byte_length = str.encode(length)
-    return byte_length, byte_json
-
-
-def unpack_json(bytes_json):
-    str_json = bytes.decode(bytes_json)
-    pck = json.loads(str_json)
-    return pck
-
-
 if __name__ == '__main__':
     respond_thread = RespondThread(max_link=10)
     respond_thread.start()
+
