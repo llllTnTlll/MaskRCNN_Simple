@@ -517,7 +517,25 @@ class MaskRCNN:
             pred_img = np.array(pred_img, dtype=np.uint8)
             # cv2.imwrite("../data/tmp/test.jpeg", pred_img)
 
+        # 预测值过滤
+        final_boxes = []
+        final_class_ids = []
+        final_scores = []
+        dlist = []
+        for i in range(len(scores)):
+            if scores[i] > 0.9:
+                final_boxes.append(boxes[i, :])
+                final_class_ids.append(class_ids[i])
+                final_scores.append(scores[i])
+            else:
+                dlist.append(i)
+
+        final_full_masks = np.delete(full_masks, dlist, 2)
+        final_boxes = np.array(final_boxes)
+        final_class_ids = np.array(final_class_ids)
+        final_scores = np.array(final_scores)
+
         print(end_time - start_time)
-        return boxes, class_ids, scores, full_masks, pred_img
+        return final_boxes, final_class_ids, final_scores, final_full_masks, pred_img
 
 
