@@ -1,3 +1,4 @@
+import cv2
 import cv2 as cv
 import numpy as np
 
@@ -8,7 +9,7 @@ def mask2seg(mask):
     :param mask:
     :return:
     """
-    contours, hierarchy = cv.findContours(mask.astype(np.uint8), cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv.findContours(mask.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     # mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     segmentation = []
     for contour in contours:

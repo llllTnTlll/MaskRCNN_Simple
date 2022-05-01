@@ -86,6 +86,7 @@ def get_anns(coco: COCO, cat_name, quantity):
 
         image = cv.imread(get_path(coco, image_id))
         mask = seg2mask(image_shapes, seg)
+
         foreground = cv.copyTo(image, mask)
         anns.append(dict(
             shapes=image_shapes,
@@ -185,8 +186,8 @@ def enhance_apply(file_path, coco_infos, anns, mode_list):
 
 if __name__ == '__main__':
     path = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
-    img_folder = r"C:\Users\zhiyuan\Desktop\temp_copy\coco\JPEGImages"
+    img_folder = r"C:\Users\zhiyuan\Desktop\temp\coco\JPEGImages"
     c = get_coco(path)
-    _coco_infos, _anns = get_anns(c, 'rectangle', 2)
+    _coco_infos, _anns = get_anns(c, 'triangle', 20)
     enhance_apply(path, _coco_infos, _anns, ['translate'])
     coco_visual(path, img_folder)
