@@ -50,7 +50,7 @@ def distribution(data_socket, addr):
                 img = cv.imread(path)
                 imgs.append(img)
 
-            respond = method(imgs, "../weights/mrcnn-epoch-95.h5", None)
+            respond = method(imgs, "../weights/mrcnn-epoch-85.h5", None)
             # 发送信息
             length, data_pkg = pack_json(respond)
             try:

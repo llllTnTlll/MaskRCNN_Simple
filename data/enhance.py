@@ -188,6 +188,6 @@ if __name__ == '__main__':
     path = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
     img_folder = r"C:\Users\zhiyuan\Desktop\temp\coco\JPEGImages"
     c = get_coco(path)
-    _coco_infos, _anns = get_anns(c, 'triangle', 20)
+    _coco_infos, _anns = get_anns(c, 'rectangle', 20)
     enhance_apply(path, _coco_infos, _anns, ['translate'])
     coco_visual(path, img_folder)

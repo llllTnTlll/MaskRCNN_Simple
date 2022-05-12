@@ -45,7 +45,7 @@ def train_with_coco(config: Config):
     # custom data class
     classes = config.CLASSES
     coco_annotation_file = r"C:\Users\zhiyuan\Desktop\temp\coco\annotations.json"
-    weight_path = r"C:\Users\zhiyuan\Desktop\temp\coco\mrcnn-epoch-20.h5"
+    weight_path = r"C:\Users\zhiyuan\Desktop\work\python\MaskRCNN_Simple\weights\mrcnn-epoch-95.h5"
 
     # tensorboard 日志目录
     log_dir = "../logs"
@@ -62,7 +62,7 @@ def train_with_coco(config: Config):
 
     mrcnn = MaskRCNN(is_training=True,
                      config=config)
-    # mrcnn.load_weights(filepath=weight_path)
+    mrcnn.load_weights(filepath=weight_path)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
     anchors = get_anchors(image_shape=image_shape,
@@ -338,6 +338,9 @@ if __name__ == "__main__":
         tf.config.set_visible_devices([gpu0], "GPU")
 
     myconfig = Config()
+    myconfig.EPOCHS = 150
+    myconfig.TRAIN_WITH_TFRECORD = False
+
     if myconfig.TRAIN_WITH_TFRECORD:
         generate_coco_segment_tfrecord(myconfig,
                                        is_training=True,
@@ -347,6 +350,8 @@ if __name__ == "__main__":
         train_with_tfrecord(config=myconfig,
                             log_dir="../logs",
                             tfrec_path=r"C:\Users\zhiyuan\Desktop\work\python\MaskRCNN_Simple\coco_tfrec\coco_train_seg.tfrec")
+    else:
+        train_with_coco(myconfig)
 
 
 

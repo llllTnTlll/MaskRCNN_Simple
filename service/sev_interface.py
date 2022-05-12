@@ -56,4 +56,4 @@ if __name__ == "__main__":
         img = cv.imread(path)
         imgs.append(img)
     if len(imgs) > 0:
-        Operations.predict(imgs, "../weights/mrcnn-epoch-95.h5", None)
+        Operations.predict(imgs, "../weights/mrcnn-epoch-85.h5", None)
