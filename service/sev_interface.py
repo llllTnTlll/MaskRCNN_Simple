@@ -10,8 +10,7 @@ from json_serializer import RespondPkg, respond2json
 
 
 class Operations:
-    @staticmethod
-    def predict(img_list, h5_path, config_path=None):
+    def __init__(self, h5_path, config_path=None):
         # 加载权重
         config = Config()
         if config_path is not None:
@@ -24,22 +23,23 @@ class Operations:
         anchor_stride = config.ANCHOR_STRIDE
 
         # 实例化模型
-        mrcnn = MaskRCNN(is_training=False,
-                         config=config)
+        self.mrcnn = MaskRCNN(is_training=False,
+                              config=config)
 
         # 加载模型权重
-        mrcnn.load_weights(h5_path, by_name=True)
+        self.mrcnn.load_weights(h5_path, by_name=True)
 
-        anchors = get_anchors(image_shape=image_shape,
-                              scales=scales,
-                              ratios=ratios,
-                              feature_strides=feature_strides,
-                              anchor_stride=anchor_stride)
+        self.anchors = get_anchors(image_shape=image_shape,
+                                   scales=scales,
+                                   ratios=ratios,
+                                   feature_strides=feature_strides,
+                                   anchor_stride=anchor_stride)
 
+    def predict(self, img_list):
         for i in range(len(img_list)):
-            final_boxes, final_class_ids, final_scores, final_mask, pre_img = mrcnn.predict(img_list[i],
-                                                                                            anchors,
-                                                                                            draw_detect_res_figure=True)
+            final_boxes, final_class_ids, final_scores, final_mask, pre_img = self.mrcnn.predict(img_list[i],
+                                                                                                 self.anchors,
+                                                                                                 draw_detect_res_figure=True)
             # 将检测结果序列化为json
             respond = RespondPkg(pkg_type='predict_data', result=[final_boxes, final_class_ids])
             json_respond = respond2json(respond)

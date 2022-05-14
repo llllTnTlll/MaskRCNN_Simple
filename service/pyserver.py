@@ -24,42 +24,42 @@ class RespondThread(threading.Thread):
             listener.listen()
             print('listener thread has begin...')
             while not listening_thread_exit:
-                data_socket, addr = listener.accept()
                 # 开启全新的通信线程
-                t = threading.Thread(target=distribution(data_socket, addr))
+                t = threading.Thread(target=distribution(listener))
                 t.start()
 
 
-def distribution(data_socket, addr):
+def distribution(listener):
+    operations = Operations("../weights/mrcnn-epoch-85.h5", None)
+    data_socket, addr = listener.accept()
     print('{} connected'.format(addr))
-    length = int(data_socket.recv(8))
-    command_pkg = unpack_json(recv_pack(data_socket, length))
+    while True:
+        length = int(data_socket.recv(8))
+        command_pkg = unpack_json(recv_pack(data_socket, length))
 
-    if command_pkg['pkg_type'] == 'command':
-        operations = Operations()
-        command = command_pkg['command']
+        if command_pkg['pkg_type'] == 'command':
+            command = command_pkg['command']
 
-        # TODO: 反射调用指定命令
-        if hasattr(operations, command):
-            method = getattr(operations, command)
+            # TODO: 反射调用指定命令
+            if hasattr(operations, command):
+                method = getattr(operations, command)
 
-            img_dir = r"C:\Users\zhiyuan\Desktop\temp\test"
-            paths = glob.glob(os.path.join(img_dir, '*.jpg'))
-            imgs = []
-            for path in paths:
-                img = cv.imread(path)
-                imgs.append(img)
-
-            respond = method(imgs, "../weights/mrcnn-epoch-85.h5", None)
-            # 发送信息
-            length, data_pkg = pack_json(respond)
-            try:
-                data_socket.send(length)
-                data_socket.send(data_pkg)
-            except ConnectionResetError as e:
-                print(repr(e))
-                print('{} disconnected'.format(addr))
-                return
+                img_dir = r"C:\Users\zhiyuan\Desktop\temp\test"
+                paths = glob.glob(os.path.join(img_dir, '*.jpg'))
+                imgs = []
+                for path in paths:
+                    img = cv.imread(path)
+                    imgs.append(img)
+                respond = method(imgs)
+                # 发送信息
+                length, data_pkg = pack_json(respond)
+                try:
+                    data_socket.send(length)
+                    data_socket.send(data_pkg)
+                except ConnectionResetError as e:
+                    print(repr(e))
+                    print('{} disconnected'.format(addr))
+                    return
 
 
 def recv_pack(sock, count):
